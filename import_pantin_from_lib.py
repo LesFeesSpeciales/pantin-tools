@@ -880,52 +880,51 @@ def get_lib_path():
 
 def update_asset(self, context):
     lib_path = get_lib_path()
+    settings = context.scene.imported_items_settings
 
-    asset_type = context.scene.imported_items_settings.types[
-        context.scene.imported_items_settings.active_type
-    ].name
-    asset_family = context.scene.imported_items_settings.families[
-        context.scene.imported_items_settings.active_family
-    ].name
-    family_path = os.path.join(lib_path, asset_type, asset_family)
+    asset_type = settings.types[settings.active_type].name
+    settings.active_asset = 0
+    settings.assets.clear()
 
-    context.scene.imported_items_settings.active_asset = 0
-    context.scene.imported_items_settings.assets.clear()
-    for i in os.listdir(family_path):
-        if os.path.isdir(
-            os.path.join(family_path, i)
-        ):
-            t = context.scene.imported_items_settings.assets.add()
-            t.name = i
+    if len(settings.families):
+        asset_family = settings.families[settings.active_family].name
+        family_path = os.path.join(lib_path, asset_type, asset_family)
+        for i in os.listdir(family_path):
+            if os.path.isdir(
+                os.path.join(family_path, i)
+            ):
+                t = settings.assets.add()
+                t.name = i
 
 
 def update_family(self, context):
     lib_path = get_lib_path()
-    asset_type = context.scene.imported_items_settings.types[
-        context.scene.imported_items_settings.active_type
-    ].name
+    settings = context.scene.imported_items_settings
+
+    asset_type = settings.types[settings.active_type].name
     type_path = os.path.join(lib_path, asset_type)
 
-    context.scene.imported_items_settings.families.clear()
+    settings.families.clear()
     for i in os.listdir(type_path):
         if os.path.isdir(
             os.path.join(type_path, i)
         ):
-            t = context.scene.imported_items_settings.families.add()
+            t = settings.families.add()
             t.name = i
 
-    context.scene.imported_items_settings.active_family = 0  # Update families
+    settings.active_family = 0  # Update assets
 
 
 def update_type(self, context):
     lib_path = get_lib_path()
+    settings = context.scene.imported_items_settings
 
-    context.scene.imported_items_settings.types.clear()
+    settings.types.clear()
     for i in os.listdir(lib_path):
-        t = context.scene.imported_items_settings.types.add()
+        t = settings.types.add()
         t.name = i
 
-    context.scene.imported_items_settings.active_type = 0  # Update types
+    settings.active_type = 0  # Update families
 
 
 class PantinAssetListReload(bpy.types.Operator):
