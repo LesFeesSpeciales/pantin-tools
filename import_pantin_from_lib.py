@@ -871,6 +871,80 @@ class PantinSetShadowVisibility(bpy.types.Operator):
 
         return {"FINISHED"}
 
+
+def get_lib_path():
+    user_preferences = bpy.context.user_preferences
+    addon_prefs = user_preferences.addons[__name__].preferences
+    return addon_prefs.lib_path
+
+
+def update_asset(self, context):
+    lib_path = get_lib_path()
+
+    asset_type = context.scene.imported_items_settings.types[
+        context.scene.imported_items_settings.active_type
+    ].name
+    asset_family = context.scene.imported_items_settings.families[
+        context.scene.imported_items_settings.active_family
+    ].name
+    family_path = os.path.join(lib_path, asset_type, asset_family)
+
+    context.scene.imported_items_settings.active_asset = 0
+    context.scene.imported_items_settings.assets.clear()
+    for i in os.listdir(family_path):
+        if os.path.isdir(
+            os.path.join(family_path, i)
+        ):
+            t = context.scene.imported_items_settings.assets.add()
+            t.name = i
+
+
+def update_family(self, context):
+    lib_path = get_lib_path()
+    asset_type = context.scene.imported_items_settings.types[
+        context.scene.imported_items_settings.active_type
+    ].name
+    type_path = os.path.join(lib_path, asset_type)
+
+    context.scene.imported_items_settings.families.clear()
+    for i in os.listdir(type_path):
+        if os.path.isdir(
+            os.path.join(type_path, i)
+        ):
+            t = context.scene.imported_items_settings.families.add()
+            t.name = i
+
+    context.scene.imported_items_settings.active_family = 0  # Update families
+
+
+def update_type(self, context):
+    lib_path = get_lib_path()
+
+    context.scene.imported_items_settings.types.clear()
+    for i in os.listdir(lib_path):
+        t = context.scene.imported_items_settings.types.add()
+        t.name = i
+
+    context.scene.imported_items_settings.active_type = 0  # Update types
+
+
+class PantinAssetListReload(bpy.types.Operator):
+    """
+    """
+    bl_idname = "lfs.asset_list_reload"
+    bl_label = "Reload"
+    bl_description = "Reload"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        update_type(self, context)
+        return {'FINISHED'}
+
+
 ######################
 #
 #    UI
@@ -919,6 +993,47 @@ class PantinsPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        # Importer
+        row = layout.row()
+        sub = row.row()
+        sub.label(text="Select asset:")
+        sub = row.row(align=True)
+        sub.operator("lfs.asset_list_reload",
+                     text="", icon="FILE_REFRESH")
+        row = layout.row()
+        row.template_list("UI_UL_list",
+                          "types",
+                          context.scene.imported_items_settings,
+                          "types",
+                          context.scene.imported_items_settings,
+                          "active_type",
+                          rows=5)
+        row.template_list("UI_UL_list",
+                          "families",
+                          context.scene.imported_items_settings,
+                          "families",
+                          context.scene.imported_items_settings,
+                          "active_family",
+                          rows=5)
+        row.template_list("UI_UL_list",
+                          "assets",
+                          context.scene.imported_items_settings,
+                          "assets",
+                          context.scene.imported_items_settings,
+                          "active_asset",
+                          rows=5)
+        op = layout.operator("lfs.import_pantin_from_lib")
+        op.asset_type = context.scene.imported_items_settings.types[
+            context.scene.imported_items_settings.active_type
+        ].name
+        op.asset_family = context.scene.imported_items_settings.families[
+            context.scene.imported_items_settings.active_family
+        ].name
+        op.asset_name = context.scene.imported_items_settings.assets[
+            context.scene.imported_items_settings.active_asset
+        ].name
+        layout.separator()
+
         if len(context.scene.imported_items) == 0:
             layout.label(text="Nothing imported yet", icon="INFO")
         else:
@@ -1170,6 +1285,17 @@ class Imported_Items_Settings(bpy.types.PropertyGroup):
         name="Pantins Panel Search",
         default='',
         description="Search in Pantins")
+    types = bpy.props.CollectionProperty(name="Types",
+        type=bpy.types.PropertyGroup)
+    families = bpy.props.CollectionProperty(name="Families",
+        type=bpy.types.PropertyGroup)
+    assets = bpy.props.CollectionProperty(name="Assets",
+        type=bpy.types.PropertyGroup)
+    active_type = bpy.props.IntProperty(name="Active Type",
+                                        update=update_family)
+    active_family = bpy.props.IntProperty(name="Active Family",
+                                          update=update_asset)
+    active_asset = bpy.props.IntProperty(name="Active Asset")
 
 class ImportPantinPreferences(AddonPreferences):
     bl_idname = __name__
@@ -1193,6 +1319,7 @@ def register():
     bpy.utils.register_class(ImportPantinFromLIB)
     bpy.utils.register_class(CRIQUET_UL_variations_list)
     bpy.utils.register_class(CRIQUET_UL_planes_list)
+    bpy.utils.register_class(PantinAssetListReload)
     bpy.utils.register_class(PantinMoveLayer)
     bpy.utils.register_class(PantinsPanel)
     bpy.utils.register_class(PantinSelect)
@@ -1211,6 +1338,7 @@ def unregister():
     bpy.utils.unregister_class(ImportPantinFromLIB)
     bpy.utils.unregister_class(CRIQUET_UL_variations_list)
     bpy.utils.unregister_class(CRIQUET_UL_planes_list)
+    bpy.utils.unregister_class(PantinAssetListReload)
     bpy.utils.unregister_class(PantinMoveLayer)
     bpy.utils.unregister_class(PantinsPanel)
     bpy.utils.unregister_class(PantinSelect)
