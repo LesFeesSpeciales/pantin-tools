@@ -22,11 +22,9 @@ bl_info = {
     "version": (1, 0),
     "blender": (2, 77, 0),
     "location": "View3D > Tool > Parent planes to bones",
-    "description": """In-house tool to
-                      * generate UUIDS for pantins at rig phase, used by other tools
-                      * automatically parent planes to bones based on names
-                      * add animatable plane variations
-                      """,
+    "description": "In-house tool to generate UUIDS for pantins at rig phase, used by other tools, "
+                    "automatically parent planes to bones based on names, "
+                    "add animatable plane variations" ,
     "warning": "",
     "wiki_url": "",
     "category": "LFS",
