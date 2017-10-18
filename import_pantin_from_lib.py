@@ -889,7 +889,7 @@ def update_asset(self, context):
     if len(settings.families):
         asset_family = settings.families[settings.active_family].name
         family_path = os.path.join(lib_path, asset_type, asset_family)
-        for i in os.listdir(family_path):
+        for i in sorted(os.listdir(family_path)):
             if os.path.isdir(
                 os.path.join(family_path, i)
             ):
@@ -905,7 +905,7 @@ def update_family(self, context):
     type_path = os.path.join(lib_path, asset_type)
 
     settings.families.clear()
-    for i in os.listdir(type_path):
+    for i in sorted(os.listdir(type_path)):
         if os.path.isdir(
             os.path.join(type_path, i)
         ):
@@ -920,7 +920,7 @@ def update_type(self, context):
     settings = context.scene.imported_items_settings
 
     settings.types.clear()
-    for i in os.listdir(lib_path):
+    for i in sorted(os.listdir(lib_path)):
         t = settings.types.add()
         t.name = i
 
