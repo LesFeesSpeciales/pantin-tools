@@ -984,15 +984,16 @@ class CRIQUET_UL_planes_list(bpy.types.UIList):
                 layout.label(text="", icon_value=icon)
 
 
-class PantinsPanel(bpy.types.Panel):
-    bl_idname = "lfs.pantins_panel"
-    bl_label = "Pantins"
+class PantinsImportPanel(bpy.types.Panel):
+    bl_idname = "lfs.pantins_import_panel"
+    bl_label = "Import Pantins"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_category = "LFS"
 
     def draw(self, context):
         layout = self.layout
+        settings = context.scene.imported_items_settings
         # Importer
         row = layout.row()
         sub = row.row()
@@ -1003,37 +1004,44 @@ class PantinsPanel(bpy.types.Panel):
         row = layout.row()
         row.template_list("UI_UL_list",
                           "types",
-                          context.scene.imported_items_settings,
+                          settings,
                           "types",
-                          context.scene.imported_items_settings,
+                          settings,
                           "active_type",
                           rows=5)
         row.template_list("UI_UL_list",
                           "families",
-                          context.scene.imported_items_settings,
+                          settings,
                           "families",
-                          context.scene.imported_items_settings,
+                          settings,
                           "active_family",
                           rows=5)
         row.template_list("UI_UL_list",
                           "assets",
-                          context.scene.imported_items_settings,
+                          settings,
                           "assets",
-                          context.scene.imported_items_settings,
+                          settings,
                           "active_asset",
                           rows=5)
+        row = layout.row()
         op = layout.operator("lfs.import_pantin_from_lib")
-        op.asset_type = context.scene.imported_items_settings.types[
-            context.scene.imported_items_settings.active_type
-        ].name
-        op.asset_family = context.scene.imported_items_settings.families[
-            context.scene.imported_items_settings.active_family
-        ].name
-        op.asset_name = context.scene.imported_items_settings.assets[
-            context.scene.imported_items_settings.active_asset
-        ].name
-        layout.separator()
+        if len(settings.types) and len(settings.families) and len(settings.assets):
+            op.asset_type = settings.types[settings.active_type].name
+            op.asset_family = settings.families[settings.active_family].name
+            op.asset_name = settings.assets[settings.active_asset].name
+        else:
+            row.active = False
 
+
+class PantinsPanel(bpy.types.Panel):
+    bl_idname = "lfs.pantins_panel"
+    bl_label = "Pantins"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_category = "LFS"
+
+    def draw(self, context):
+        layout = self.layout
         if len(context.scene.imported_items) == 0:
             layout.label(text="Nothing imported yet", icon="INFO")
         else:
@@ -1321,6 +1329,7 @@ def register():
     bpy.utils.register_class(CRIQUET_UL_planes_list)
     bpy.utils.register_class(PantinAssetListReload)
     bpy.utils.register_class(PantinMoveLayer)
+    bpy.utils.register_class(PantinsImportPanel)
     bpy.utils.register_class(PantinsPanel)
     bpy.utils.register_class(PantinSelect)
     bpy.utils.register_class(PantinReload)
@@ -1340,6 +1349,7 @@ def unregister():
     bpy.utils.unregister_class(CRIQUET_UL_planes_list)
     bpy.utils.unregister_class(PantinAssetListReload)
     bpy.utils.unregister_class(PantinMoveLayer)
+    bpy.utils.unregister_class(PantinsImportPanel)
     bpy.utils.unregister_class(PantinsPanel)
     bpy.utils.unregister_class(PantinSelect)
     bpy.utils.unregister_class(PantinReload)
