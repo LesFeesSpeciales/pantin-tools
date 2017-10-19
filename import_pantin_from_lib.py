@@ -120,33 +120,12 @@ def import_asset(self, context,
             path = os.path.join(path, i)
             break
 
-    # path = os.path.join(REMOTE[sys.platform], path)
     print(path)
-    # assets = glob.glob(path)
-    # if assets:
-    #     assets.sort()
-    # else:
-    #     if self.callback_idx:
-    #         bpy.ops.lfs.message_callback(callback_idx=self.callback_idx, message=json.dumps({'Exception':'File not found'}))
-    #     raise ImportError('File not found')
-    # other = assets[-1]
 
     other = path
 
-    # # Import scene and copy imported_items info
-    # with bpy.data.libraries.load(other, link=False) as (data_from, data_to):
-    #     data_to.scenes = data_from.scenes
-    # original_scene = data_to.scenes[0]
-    # if original_scene.imported_items:
-    #     for i in original_scene.imported_items:
-    #         pass
-
-    # original_scene.user_clear()
-    # bpy.data.scenes.remove(original_scene)
-
     # Link in groups and relevant texts from other file
     with bpy.data.libraries.load(other, link=False) as (data_from, data_to):
-    #    print(data_from.groups)
         for g in data_from.groups:
             if g == asset_name:
                 data_to.groups.append(g)
@@ -156,13 +135,11 @@ def import_asset(self, context,
         grps = data_to.groups
         txts = data_to.texts
 
-    # print(list(zip(data_to.groups, [g for g in grps])))
     if len(grps) == 0:
-        # if self.callback_idx:
-        #     bpy.ops.lfs.message_callback(
-        #         callback_idx=self.callback_idx,
-        #         message=json.dumps({'Exception': "No group found in file"}))
-        raise ImportError("No group found in file")
+        self.report({"ERROR"}, "No group found in file {}.\n".format(other)
+                                + "Check that the group has the "
+                                + "same name as the character.")
+        return {'CANCELLED'}
 
     # Generate new uuid if none was specified (ie. first import)
     if new_asset_uuid is None:
