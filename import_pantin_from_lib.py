@@ -1,20 +1,19 @@
 # Copyright (C) 2017 Les Fees Speciales
 # voeu@les-fees-speciales.coop
 #
-# Created by Les Fees Speciales
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
 #
-#     This program is free software: you can redistribute it and/or modify
-#     it under the terms of the GNU General Public License as published by
-#     the Free Software Foundation, either version 3 of the License, or
-#     (at your option) any later version.
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
 #
-#     This program is distributed in the hope that it will be useful,
-#     but WITHOUT ANY WARRANTY; without even the implied warranty of
-#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#     GNU General Public License for more details.
-#
-#     You should have received a copy of the GNU General Public License
-#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    You should have received a copy of the GNU General Public License along
+#    with this program; if not, write to the Free Software Foundation, Inc.,
+#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
 bl_info = {
@@ -36,12 +35,6 @@ import os
 import re
 import json
 from uuid import uuid4
-
-REMOTE = {
-    "linux": "/u/production/",
-    "win32": "U:\\",
-    "darwin": "/Volumes/Production",  # ????????
-}
 
 
 # Will I ever need this?
@@ -112,35 +105,22 @@ def create_datablock(item, obj, id_type):
 
 
 def import_asset(self, context,
-                 asset_name, asset_family, asset_type,
-                 new_asset_uuid=None, use_rlo=False):
+                 lib_path, asset_name,
+                 new_asset_uuid=None):
     """ Given asset info, import it from the PRODUCTION drive.
     """
     print(asset_name)
     # hack for embedded nullbyte character
     asset_name = asset_name.replace('\x00', '')
-    path = None
-    user_preferences = context.user_preferences
-    addon_prefs = user_preferences.addons[__name__].preferences
-    lib_path = addon_prefs.lib_path
-    if use_rlo:
-        path = (lib_path + "{type}/{family}/{name}/"
-                "actor/LIB_{type}_{family}_{name}_actor_{ref}.blend"
-                .format(type=asset_type,
-                        name=asset_name,
-                        family=asset_family,
-                        ref="RLO"))
-        path = os.path.join(REMOTE[sys.platform], path)
-        if not os.path.isfile(path):
-            path = None
-    if path is None:
-        path = (lib_path + "{type}/{family}/{name}/"
-                "actor/LIB_{type}_{family}_{name}_actor_{ref}.blend"
-                .format(type=asset_type,
-                        name=asset_name,
-                        family=asset_family,
-                        ref="REF"))
-        path = os.path.join(REMOTE[sys.platform], path)
+
+    path = os.path.join(lib_path, asset_name, 'actor')
+
+    for i in os.listdir(path):
+        if i.endswith('_REF.blend'):
+            path = os.path.join(path, i)
+            break
+
+    # path = os.path.join(REMOTE[sys.platform], path)
     print(path)
     # assets = glob.glob(path)
     # if assets:
@@ -226,8 +206,7 @@ def import_asset(self, context,
                 if not o['asset_uuid'] in original_assets:
                     original_assets[o['asset_uuid']] = {
                         'asset_name': o['asset_name'],
-                        'asset_family': o['asset_family'],
-                        'asset_type': o['asset_type'],
+                        'lib_path': o['lib_path'],
                         'objects': [o],
                     }
                 else:
@@ -246,25 +225,22 @@ def import_asset(self, context,
                 # They will be read back if the asset is used recursively.
                 o['asset_uuid'] = new_asset_uuid
                 o['asset_name'] = asset_name
-                o['asset_family'] = asset_family
-                o['asset_type'] = asset_type
+                o['lib_path'] = lib_path
 
-            if o.type == "ARMATURE":
-                context.scene.objects.active = o
-            add_object_to_group(o, asset_family.upper())
+            # if o.type == "ARMATURE":
+            #     context.scene.objects.active = o
+            # add_object_to_group(o, asset_family.upper())
 
     if original_assets:
         for uuid, props in original_assets.items():
             group = bpy.data.groups.new(props['asset_name'])
             group['db_uuid'] = str(uuid4())
-            # grps.append(group)
 
             new_item = context.scene.imported_items.add()
-            new_item.name = group.name  # grps[0].name
+            new_item.name = group.name
             new_item.asset_name = props['asset_name']
+            new_item.lib_path = props['lib_path']
             new_item.asset_uuid = uuid + ' ' + new_asset_uuid
-            new_item.asset_family = props['asset_family']
-            new_item.asset_type = props['asset_type']
 
             create_datablock(new_item, group, 'Group')
 
@@ -277,9 +253,8 @@ def import_asset(self, context,
         new_item = context.scene.imported_items.add()
         new_item.name = other_grp
         new_item.asset_name = asset_name
+        new_item.lib_path = lib_path
         new_item.asset_uuid = new_asset_uuid
-        new_item.asset_family = asset_family
-        new_item.asset_type = asset_type
         for o in other_assets:
             create_datablock(new_item, o, 'Object')
 
@@ -315,15 +290,13 @@ class ImportPantinFromLIB(bpy.types.Operator):
 
     # callback_idx = bpy.props.StringProperty(default='', options={"HIDDEN"})
 
-    asset_type = bpy.props.StringProperty()
-    asset_family = bpy.props.StringProperty()
+    lib_path = bpy.props.StringProperty()
     asset_name = bpy.props.StringProperty()
-    use_rlo = bpy.props.BoolProperty(default=False)
 
     def execute(self, context):
         import_asset(self, context,
-                     self.asset_name, self.asset_family,
-                     self.asset_type, use_rlo=self.use_rlo)
+                     self.lib_path,
+                     self.asset_name)
 
         return {'FINISHED'}
 
@@ -514,14 +487,11 @@ class PantinReload(bpy.types.Operator):
         old_uuids = {odb.name: odb for odb in old_item.datablocks}
 
         # Import new asset based on old one's data
-        (asset_name, asset_family,
-         asset_type, asset_uuid) = (old_item.asset_name, old_item.asset_family,
-                                    old_item.asset_type, old_item.asset_uuid)
+        (asset_name, lib_path, asset_uuid) = (old_item.asset_name, old_item.lib_path, old_item.asset_uuid)
         # Get only last part (local) of uuid
         asset_uuid = asset_uuid.split(" ")[-1]
         new_item = import_asset(self,
-                                context, asset_name,
-                                asset_family, asset_type,
+                                context, lib_path, asset_name,
                                 new_asset_uuid=asset_uuid)
         new_item_name = new_item.name  # for pointer change later (?)
         old_item.name = old_name
@@ -755,18 +725,11 @@ def list_textures(self, context, item=None):
     if item is None:
         item = imported_items[self.item]
 
-    (asset_name, asset_family, asset_type) = (item.asset_name,
-                                              item.asset_family,
-                                              item.asset_type)
+    asset_name = item.asset_name
+    lib_path = item.lib_path
 
-    user_preferences = context.user_preferences
-    addon_prefs = user_preferences.addons[__name__].preferences
-    lib_path = addon_prefs.lib_path
-    dirpath = (
-        lib_path + "{type}/{family}/{name}/actor/textures/".format(
-            type=asset_type, name=asset_name, family=asset_family)
-        )
-    dirpath = os.path.join(REMOTE[sys.platform], dirpath)
+    dirpath = os.path.join(lib_path, asset_name, 'actor', 'textures')
+
     # hack for embedded nullbyte character
     dirpath = dirpath.replace('\x00', '')
     if not os.path.exists(dirpath):
@@ -872,67 +835,62 @@ class PantinSetShadowVisibility(bpy.types.Operator):
         return {"FINISHED"}
 
 
-def get_lib_path():
-    user_preferences = bpy.context.user_preferences
-    addon_prefs = user_preferences.addons[__name__].preferences
-    return addon_prefs.lib_path
-
-
 def update_asset(self, context):
-    lib_path = get_lib_path()
     settings = context.scene.imported_items_settings
+    user_preferences = context.user_preferences
+    addon_prefs = user_preferences.addons[__name__].preferences
+    lib_paths = addon_prefs.lib_paths
 
-    asset_type = settings.types[settings.active_type].name
     settings.active_asset = 0
     settings.assets.clear()
 
-    if len(settings.families):
-        asset_family = settings.families[settings.active_family].name
-        family_path = os.path.join(lib_path, asset_type, asset_family)
-        for i in sorted(os.listdir(family_path)):
+    if len(lib_paths):
+        lib_path = lib_paths[addon_prefs.active_lib].name
+        for i in sorted(os.listdir(lib_path)):
             if os.path.isdir(
-                os.path.join(family_path, i)
+                os.path.join(lib_path, i)
             ):
                 t = settings.assets.add()
                 t.name = i
 
-
-def update_family(self, context):
-    lib_path = get_lib_path()
-    settings = context.scene.imported_items_settings
-
-    asset_type = settings.types[settings.active_type].name
-    type_path = os.path.join(lib_path, asset_type)
-
-    settings.families.clear()
-    for i in sorted(os.listdir(type_path)):
-        if os.path.isdir(
-            os.path.join(type_path, i)
-        ):
-            t = settings.families.add()
-            t.name = i
-
-    settings.active_family = 0  # Update assets
-
-
-def update_type(self, context):
-    lib_path = get_lib_path()
-    settings = context.scene.imported_items_settings
-
-    settings.types.clear()
-    for i in sorted(os.listdir(lib_path)):
-        t = settings.types.add()
-        t.name = i
-
-    settings.active_type = 0  # Update families
-
-
-class PantinAssetListReload(bpy.types.Operator):
+class PantinLibAdd(bpy.types.Operator):
     """
     """
-    bl_idname = "lfs.asset_list_reload"
-    bl_label = "Reload"
-    bl_description = "Reload"
+    bl_idname = "lfs.pantin_lib_add"
+    bl_label = "Add Lib"
+    bl_description = "Add Lib"
+    bl_options = {"REGISTER", "UNDO"}
+
+    directory = StringProperty(maxlen=1024, subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
+
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+        lib_paths = addon_prefs.lib_paths
+
+        if not self.directory in lib_paths:
+            lib = lib_paths.add()
+            lib.name = self.directory
+
+        update_asset(self, context)
+        return {'FINISHED'}
+
+
+class PantinLibRemove(bpy.types.Operator):
+    """
+    """
+    bl_idname = "lfs.pantin_lib_remove"
+    bl_label = "Remove Lib"
+    bl_description = "Remove Lib"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -940,7 +898,15 @@ class PantinAssetListReload(bpy.types.Operator):
         return True
 
     def execute(self, context):
-        update_type(self, context)
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+        lib_paths = addon_prefs.lib_paths
+        active_lib = addon_prefs.active_lib
+
+        lib_paths.remove(active_lib)
+        if active_lib > len(lib_paths) - 1:
+            addon_prefs.active_lib = len(lib_paths) - 1
+        update_asset(self, context)
         return {'FINISHED'}
 
 
@@ -993,28 +959,23 @@ class PantinsImportPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.imported_items_settings
+
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+
         # Importer
-        row = layout.row()
-        sub = row.row()
-        sub.label(text="Select asset:")
-        sub = row.row(align=True)
-        sub.operator("lfs.asset_list_reload",
-                     text="", icon="FILE_REFRESH")
+        layout.label(text="Select asset:")
         row = layout.row()
         row.template_list("UI_UL_list",
-                          "types",
-                          settings,
-                          "types",
-                          settings,
-                          "active_type",
+                          "libs",
+                          addon_prefs,
+                          "lib_paths",
+                          addon_prefs,
+                          "active_lib",
                           rows=5)
-        row.template_list("UI_UL_list",
-                          "families",
-                          settings,
-                          "families",
-                          settings,
-                          "active_family",
-                          rows=5)
+        col = row.column(align = True)
+        col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
+        col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
         row.template_list("UI_UL_list",
                           "assets",
                           settings,
@@ -1024,9 +985,8 @@ class PantinsImportPanel(bpy.types.Panel):
                           rows=5)
         row = layout.row()
         op = layout.operator("lfs.import_pantin_from_lib")
-        if len(settings.types) and len(settings.families) and len(settings.assets):
-            op.asset_type = settings.types[settings.active_type].name
-            op.asset_family = settings.families[settings.active_family].name
+        if len(addon_prefs.lib_paths) and len(settings.assets):
+            op.lib_path = addon_prefs.lib_paths[addon_prefs.active_lib].name
             op.asset_name = settings.assets[settings.active_asset].name
         else:
             row.active = False
@@ -1103,7 +1063,6 @@ class PantinsPanel(bpy.types.Panel):
                 sub.operator("lfs.pantin_delete",
                              text="", icon="X").item = item.name
 
-                # row = box.row(align=True)
                 col = box.column(align=True)
                 col.prop(item, "local_variations")
                 row = col.row()
@@ -1141,15 +1100,9 @@ class PantinsPanel(bpy.types.Panel):
                 col.label(text="")
                 col.scale_x = 0.1
                 col.scale_y = 1.5
-                # col.separator()
-                # col.separator()
-                # col.separator()
                 col.operator("lfs.pantin_list_textures",
                              text="",
                              icon="FILE_REFRESH").item = item.name
-
-                    # for var in item.variations:
-                    #     box.label(var.name)
 
 
 ######################
@@ -1161,7 +1114,6 @@ class PantinsPanel(bpy.types.Panel):
 object_id_type_items = (
     ('Object', '', 'Object'),
     ('Group', '', 'Group'),
-    # ('Mesh', '', 'Mesh'),
     ('Text', '', 'Text'),
     )
 
@@ -1187,7 +1139,6 @@ def plane_update(db):
 
 
 def plane_update_callback(self, context):
-    # db = self
     plane_update(self)
 
 
@@ -1207,7 +1158,6 @@ bpy.utils.register_class(DataBlock)
 
 
 def set_texture(obj, filepath, separate_texture=False):
-    # obj = bpy.data.objects[obj_name]
     if obj.type == "MESH":
         if False:  # separate_texture: # Why did I do that, again?
             mesh = obj.data.copy()
@@ -1263,9 +1213,8 @@ def select_update(self, context):
 
 class Imported_Item(bpy.types.PropertyGroup):
     asset_uuid = bpy.props.StringProperty(name="Asset UUID", default='')
+    lib_path = bpy.props.StringProperty(name="Asset Lib Path", default='')
     asset_name = bpy.props.StringProperty(name="Asset Name", default='')
-    asset_family = bpy.props.StringProperty(name="Asset Family", default='')
-    asset_type = bpy.props.StringProperty(name="Asset Type", default='')
     datablocks = bpy.props.CollectionProperty(name="Datablocks",
                                               type=DataBlock)
     variations = bpy.props.CollectionProperty(name="Variations",
@@ -1273,7 +1222,6 @@ class Imported_Item(bpy.types.PropertyGroup):
     active_datablock = bpy.props.IntProperty(name="Active Datablock", )
     active_variation = bpy.props.IntProperty(name="Active Variation",
                                              update=variation_update)
-    # variation = bpy.props.EnumProperty(name="Variation", items=(('','',''),), default='')
     local_variations = bpy.props.BoolProperty(name="Local Variations", default=False, )
     hide = bpy.props.BoolProperty(name="Hide",
                                   description="Restrict/Allow visibility",
@@ -1292,29 +1240,34 @@ class Imported_Items_Settings(bpy.types.PropertyGroup):
         name="Pantins Panel Search",
         default='',
         description="Search in Pantins")
-    types = bpy.props.CollectionProperty(name="Types",
-        type=bpy.types.PropertyGroup)
-    families = bpy.props.CollectionProperty(name="Families",
-        type=bpy.types.PropertyGroup)
     assets = bpy.props.CollectionProperty(name="Assets",
         type=bpy.types.PropertyGroup)
-    active_type = bpy.props.IntProperty(name="Active Type",
-                                        update=update_family)
-    active_family = bpy.props.IntProperty(name="Active Family",
-                                          update=update_asset)
     active_asset = bpy.props.IntProperty(name="Active Asset")
 
 class ImportPantinPreferences(AddonPreferences):
     bl_idname = __name__
 
-    lib_path = StringProperty(
-            name="LIB Path",
-            subtype='FILE_PATH',
+    lib_paths = bpy.props.CollectionProperty(
+            name="LIB Paths",
+            type=bpy.types.PropertyGroup,
             )
+    active_lib = bpy.props.IntProperty(name="Active Lib",
+                                       update=update_asset)
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "lib_path")
+        row = layout.row()
+        row.template_list("UI_UL_list",
+                          "libs",
+                          self,
+                          "lib_paths",
+                          self,
+                          "active_lib",
+                          rows=5)
+
+        col = row.column(align=True)
+        col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
+        col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
 
 def register():
     bpy.utils.register_class(Imported_Item)
@@ -1324,9 +1277,10 @@ def register():
     bpy.types.Scene.imported_items_settings = bpy.props.PointerProperty(
         name="Imported Items Settings", type=Imported_Items_Settings)
     bpy.utils.register_class(ImportPantinFromLIB)
+    bpy.utils.register_class(PantinLibAdd)
+    bpy.utils.register_class(PantinLibRemove)
     bpy.utils.register_class(CRIQUET_UL_variations_list)
     bpy.utils.register_class(CRIQUET_UL_planes_list)
-    bpy.utils.register_class(PantinAssetListReload)
     bpy.utils.register_class(PantinMoveLayer)
     bpy.utils.register_class(PantinsImportPanel)
     bpy.utils.register_class(PantinsPanel)
@@ -1344,9 +1298,10 @@ def unregister():
     bpy.utils.unregister_class(Imported_Item)
     bpy.utils.unregister_class(Imported_Items_Settings)
     bpy.utils.unregister_class(ImportPantinFromLIB)
+    bpy.utils.unregister_class(PantinLibAdd)
+    bpy.utils.unregister_class(PantinLibRemove)
     bpy.utils.unregister_class(CRIQUET_UL_variations_list)
     bpy.utils.unregister_class(CRIQUET_UL_planes_list)
-    bpy.utils.unregister_class(PantinAssetListReload)
     bpy.utils.unregister_class(PantinMoveLayer)
     bpy.utils.unregister_class(PantinsImportPanel)
     bpy.utils.unregister_class(PantinsPanel)
