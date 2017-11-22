@@ -96,7 +96,7 @@ def add_object_to_group(obj, group_name):
 
 
 def create_datablock(item, obj, id_type):
-    """ Create the
+    """ Create the specified datablock
     """
     obj_block = item.datablocks.add()
     obj_block.name = obj.get('db_uuid')
@@ -109,16 +109,21 @@ def import_asset(self, context,
                  new_asset_uuid=None):
     """ Given asset info, import it from the PRODUCTION drive.
     """
-    print(asset_name)
-    # hack for embedded nullbyte character
-    asset_name = asset_name.replace('\x00', '')
 
-    path = os.path.join(lib_path, asset_name, 'actor')
+    addon_prefs = context.user_preferences.addons[__name__].preferences
 
-    for i in os.listdir(path):
-        if i.endswith('_REF.blend'):
-            path = os.path.join(path, i)
-            break
+    if addon_prefs.lfs_mode:
+        print(asset_name)
+        # hack for embedded nullbyte character
+        asset_name = asset_name.replace('\x00', '')
+        path = os.path.join(lib_path, asset_name, 'actor')
+
+        for i in os.listdir(path):
+            if i.endswith('_REF.blend'):
+                path = os.path.join(path, i)
+                break
+    else:
+        path = lib_path
 
     print(path)
 
@@ -126,9 +131,14 @@ def import_asset(self, context,
 
     # Link in groups and relevant texts from other file
     with bpy.data.libraries.load(other, link=False) as (data_from, data_to):
-        for g in data_from.groups:
-            if g == asset_name:
-                data_to.groups.append(g)
+        # In LFS mode, import only correctly named group
+        if addon_prefs.lfs_mode:
+            for g in data_from.groups:
+                if g == asset_name:
+                    data_to.groups.append(g)
+        # Otherwise, import all groups...
+        else:
+            data_to.groups = data_from.groups
         for t in data_from.texts:
             if t.startswith('rig_ui'):
                 data_to.texts.append(t)
@@ -201,7 +211,8 @@ def import_asset(self, context,
                 # Assign props.
                 # They will be read back if the asset is used recursively.
                 o['asset_uuid'] = new_asset_uuid
-                o['asset_name'] = asset_name
+                if addon_prefs.lfs_mode:
+                    o['asset_name'] = asset_name
                 o['lib_path'] = lib_path
 
             # if o.type == "ARMATURE":
@@ -215,7 +226,8 @@ def import_asset(self, context,
 
             new_item = context.scene.imported_items.add()
             new_item.name = group.name
-            new_item.asset_name = props['asset_name']
+            if addon_prefs.lfs_mode:
+                new_item.asset_name = props['asset_name']
             new_item.lib_path = props['lib_path']
             new_item.asset_uuid = uuid + ' ' + new_asset_uuid
 
@@ -229,7 +241,8 @@ def import_asset(self, context,
     if other_assets:
         new_item = context.scene.imported_items.add()
         new_item.name = other_grp
-        new_item.asset_name = asset_name
+        if addon_prefs.lfs_mode:
+            new_item.asset_name = asset_name
         new_item.lib_path = lib_path
         new_item.asset_uuid = new_asset_uuid
         for o in other_assets:
@@ -267,21 +280,20 @@ class ImportPantinFromLIB(bpy.types.Operator):
 
     # callback_idx = bpy.props.StringProperty(default='', options={"HIDDEN"})
 
-    lib_path = bpy.props.StringProperty()
+    # lib_path = bpy.props.StringProperty()
+    filepath = bpy.props.StringProperty(subtype="FILE_PATH")
     asset_name = bpy.props.StringProperty()
 
     def execute(self, context):
         import_asset(self, context,
-                     self.lib_path,
+                     self.filepath,
                      self.asset_name)
 
         return {'FINISHED'}
 
-######################
-#
-#    Operators
-#
-######################
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 def pantin_select(self, context, item=None):
@@ -941,32 +953,35 @@ class PantinsImportPanel(bpy.types.Panel):
         addon_prefs = user_preferences.addons[__name__].preferences
 
         # Importer
-        layout.label(text="Select asset:")
-        row = layout.row()
-        row.template_list("UI_UL_list",
-                          "libs",
-                          addon_prefs,
-                          "lib_paths",
-                          addon_prefs,
-                          "active_lib",
-                          rows=5)
-        col = row.column(align = True)
-        col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
-        col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
-        row.template_list("UI_UL_list",
-                          "assets",
-                          settings,
-                          "assets",
-                          settings,
-                          "active_asset",
-                          rows=5)
-        row = layout.row()
-        op = layout.operator("lfs.import_pantin_from_lib")
-        if len(addon_prefs.lib_paths) and len(settings.assets):
-            op.lib_path = addon_prefs.lib_paths[addon_prefs.active_lib].name
-            op.asset_name = settings.assets[settings.active_asset].name
+        if addon_prefs.lfs_mode:
+            layout.label(text="Select asset:")
+            row = layout.row()
+            row.template_list("UI_UL_list",
+                              "libs",
+                              addon_prefs,
+                              "lib_paths",
+                              addon_prefs,
+                              "active_lib",
+                              rows=5)
+            col = row.column(align = True)
+            col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
+            col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
+            row.template_list("UI_UL_list",
+                              "assets",
+                              settings,
+                              "assets",
+                              settings,
+                              "active_asset",
+                              rows=5)
+            row = layout.row()
+            op = layout.operator("lfs.import_pantin_from_lib")
+            if len(addon_prefs.lib_paths) and len(settings.assets):
+                op.lib_path = addon_prefs.lib_paths[addon_prefs.active_lib].name
+                op.asset_name = settings.assets[settings.active_asset].name
+            else:
+                row.active = False
         else:
-            row.active = False
+            op = layout.operator("lfs.import_pantin_from_lib")
 
 
 class PantinsPanel(bpy.types.Panel):
@@ -1224,6 +1239,8 @@ class Imported_Items_Settings(bpy.types.PropertyGroup):
 class ImportPantinPreferences(AddonPreferences):
     bl_idname = __name__
 
+    lfs_mode = bpy.props.BoolProperty(name="LFS Mode",
+                                      default=False)
     lib_paths = bpy.props.CollectionProperty(
             name="LIB Paths",
             type=bpy.types.PropertyGroup,
@@ -1233,18 +1250,23 @@ class ImportPantinPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
-        row.template_list("UI_UL_list",
-                          "libs",
-                          self,
-                          "lib_paths",
-                          self,
-                          "active_lib",
-                          rows=5)
+        layout.prop(self, "lfs_mode")
 
-        col = row.column(align=True)
-        col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
-        col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
+        if self.lfs_mode:
+            layout.separator()
+            layout.label(text="Libraries:")
+            row = layout.row()
+            row.template_list("UI_UL_list",
+                              "libs",
+                              self,
+                              "lib_paths",
+                              self,
+                              "active_lib",
+                              rows=5)
+
+            col = row.column(align=True)
+            col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
+            col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
 
 def register():
     bpy.utils.register_class(Imported_Item)
