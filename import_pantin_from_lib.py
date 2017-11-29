@@ -717,7 +717,8 @@ def list_textures(self, context, item=None):
     asset_name = item.asset_name
     lib_path = item.lib_path
 
-    dirpath = os.path.join(lib_path, asset_name, 'actor', 'textures')
+    dirpath = os.path.dirname(lib_path)
+    dirpath = os.path.join(dirpath, 'textures')
 
     # hack for embedded nullbyte character
     dirpath = dirpath.replace('\x00', '')
