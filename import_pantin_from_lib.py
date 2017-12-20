@@ -213,7 +213,7 @@ def import_asset(self, context,
                 o['asset_uuid'] = new_asset_uuid
                 if addon_prefs.lfs_mode:
                     o['asset_name'] = asset_name
-                o['lib_path'] = lib_path
+                o['lib_path'] = path
 
             # if o.type == "ARMATURE":
             #     context.scene.objects.active = o
@@ -243,7 +243,7 @@ def import_asset(self, context,
         new_item.name = other_grp
         if addon_prefs.lfs_mode:
             new_item.asset_name = asset_name
-        new_item.lib_path = lib_path
+        new_item.lib_path = path
         new_item.asset_uuid = new_asset_uuid
         for o in other_assets:
             create_datablock(new_item, o, 'Object')
