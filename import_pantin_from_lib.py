@@ -734,7 +734,7 @@ def list_textures(self, context, item=None):
         files.sort()
     # print(files)
     assets = {}
-    rexp = re.compile("([a-zA-Z0-9_-]+)(_[A-Z]+)$")
+    rexp = re.compile("([a-zA-Z0-9_\-\.]+)(_[A-Z]+)$")
     old_db_variation = {
         db.name: db.active_variation for db in item.datablocks
         if db.id_type == 'Object'
