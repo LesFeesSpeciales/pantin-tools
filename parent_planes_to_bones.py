@@ -40,7 +40,7 @@ def strip_numbers(name):
     """ Returns the name with trailing numbers stripped from it.
     """
     # regexp = re.compile("\.[0-9]+$")
-    matches = re.findall("\.[0-9]+$", name)
+    matches = re.findall("\.[0-9]{3}$", name)
     if matches:
         return name[:-len(matches[-1])]
     else:
