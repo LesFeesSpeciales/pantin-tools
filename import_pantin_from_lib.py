@@ -292,8 +292,12 @@ class ImportPantinFromLIB(bpy.types.Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
+        addon_prefs = context.user_preferences.addons[__name__].preferences
+        if addon_prefs.lfs_mode:
+            return self.execute(context)
+        else:
+            context.window_manager.fileselect_add(self)
+            return {'RUNNING_MODAL'}
 
 
 def pantin_select(self, context, item=None):
@@ -938,10 +942,9 @@ class CRIQUET_UL_planes_list(bpy.types.UIList):
                 layout.alignment = 'CENTER'
                 layout.label(text="", icon_value=icon)
 
-
-class PantinsImportPanel(bpy.types.Panel):
-    bl_idname = "lfs.pantins_import_panel"
-    bl_label = "Import Pantins"
+class PantinsPanel(bpy.types.Panel):
+    bl_idname = "lfs.pantins_panel"
+    bl_label = "Pantins"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_category = "LFS"
@@ -964,7 +967,7 @@ class PantinsImportPanel(bpy.types.Panel):
                               addon_prefs,
                               "active_lib",
                               rows=5)
-            col = row.column(align = True)
+            col = row.column(align=True)
             col.operator("lfs.pantin_lib_add", icon='ZOOMIN', text="")
             col.operator("lfs.pantin_lib_remove", icon='ZOOMOUT', text="")
             row.template_list("UI_UL_list",
@@ -977,23 +980,15 @@ class PantinsImportPanel(bpy.types.Panel):
             row = layout.row()
             op = layout.operator("lfs.import_pantin_from_lib")
             if len(addon_prefs.lib_paths) and len(settings.assets):
-                op.lib_path = addon_prefs.lib_paths[addon_prefs.active_lib].name
+                op.filepath = addon_prefs.lib_paths[addon_prefs.active_lib].name
                 op.asset_name = settings.assets[settings.active_asset].name
             else:
                 row.active = False
         else:
             op = layout.operator("lfs.import_pantin_from_lib")
 
+        layout.separator()
 
-class PantinsPanel(bpy.types.Panel):
-    bl_idname = "lfs.pantins_panel"
-    bl_label = "Pantins"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_category = "LFS"
-
-    def draw(self, context):
-        layout = self.layout
         if len(context.scene.imported_items) == 0:
             layout.label(text="Nothing imported yet", icon="INFO")
         else:
@@ -1282,7 +1277,6 @@ def register():
     bpy.utils.register_class(CRIQUET_UL_variations_list)
     bpy.utils.register_class(CRIQUET_UL_planes_list)
     bpy.utils.register_class(PantinMoveLayer)
-    bpy.utils.register_class(PantinsImportPanel)
     bpy.utils.register_class(PantinsPanel)
     bpy.utils.register_class(PantinSelect)
     bpy.utils.register_class(PantinReload)
@@ -1303,7 +1297,6 @@ def unregister():
     bpy.utils.unregister_class(CRIQUET_UL_variations_list)
     bpy.utils.unregister_class(CRIQUET_UL_planes_list)
     bpy.utils.unregister_class(PantinMoveLayer)
-    bpy.utils.unregister_class(PantinsImportPanel)
     bpy.utils.unregister_class(PantinsPanel)
     bpy.utils.unregister_class(PantinSelect)
     bpy.utils.unregister_class(PantinReload)
