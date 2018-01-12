@@ -106,16 +106,14 @@ def create_datablock(item, obj, id_type):
 
 def import_asset(self, context,
                  lib_path, asset_name,
-                 new_asset_uuid=None):
+                 new_asset_uuid=None, reload=False):
     """ Given asset info, import it from the PRODUCTION drive.
     """
 
     addon_prefs = context.user_preferences.addons[__name__].preferences
 
-    if addon_prefs.lfs_mode:
+    if addon_prefs.lfs_mode and not reload:
         print(asset_name)
-        # hack for embedded nullbyte character
-        asset_name = asset_name.replace('\x00', '')
         path = os.path.join(lib_path, asset_name, 'actor')
 
         for i in os.listdir(path):
@@ -124,6 +122,8 @@ def import_asset(self, context,
                 break
     else:
         path = lib_path
+    # hack for embedded nullbyte character
+    path = path.replace('\x00', '')
 
     print(path)
 
@@ -275,7 +275,7 @@ def import_asset(self, context,
 
 class ImportPantinFromLIB(bpy.types.Operator):
     bl_idname = "lfs.import_pantin_from_lib"
-    bl_label = "Add Asset"
+    bl_label = "Import Pantin"
     bl_options = {'REGISTER', 'UNDO'}
 
     # callback_idx = bpy.props.StringProperty(default='', options={"HIDDEN"})
@@ -485,7 +485,7 @@ class PantinReload(bpy.types.Operator):
         asset_uuid = asset_uuid.split(" ")[-1]
         new_item = import_asset(self,
                                 context, lib_path, asset_name,
-                                new_asset_uuid=asset_uuid)
+                                new_asset_uuid=asset_uuid, reload=True)
         new_item_name = new_item.name  # for pointer change later (?)
         old_item.name = old_name
         old_item = imported_items[old_name]  # oh ffs
