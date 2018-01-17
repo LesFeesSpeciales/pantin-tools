@@ -79,7 +79,6 @@ def reassign_duplicate_images(obj_group):
 def strip_numbers(name):
     """ Returns the name with trailing numbers stripped from it.
     """
-    # regexp = re.compile("\.[0-9]+$")
     matches = re.findall("\.[0-9]+$", name)
     if matches:
         return name[:-len(matches[-1])]
@@ -105,23 +104,12 @@ def create_datablock(item, obj, id_type):
 
 
 def import_asset(self, context,
-                 lib_path, asset_name,
-                 new_asset_uuid=None, reload=False):
+                 lib_path,
+                 new_asset_uuid=None, reload=False,):
     """ Given asset info, import it from the PRODUCTION drive.
     """
 
-    addon_prefs = context.user_preferences.addons[__name__].preferences
-
-    if addon_prefs.lfs_mode and not reload:
-        print(asset_name)
-        path = os.path.join(lib_path, asset_name, 'actor')
-
-        for i in os.listdir(path):
-            if i.endswith('_REF.blend'):
-                path = os.path.join(path, i)
-                break
-    else:
-        path = lib_path
+    path = lib_path
     # hack for embedded nullbyte character
     path = path.replace('\x00', '')
 
@@ -131,14 +119,7 @@ def import_asset(self, context,
 
     # Link in groups and relevant texts from other file
     with bpy.data.libraries.load(other, link=False) as (data_from, data_to):
-        # In LFS mode, import only correctly named group
-        if addon_prefs.lfs_mode:
-            for g in data_from.groups:
-                if g == asset_name:
-                    data_to.groups.append(g)
-        # Otherwise, import all groups...
-        else:
-            data_to.groups = data_from.groups
+        data_to.groups = data_from.groups
         for t in data_from.texts:
             if t.startswith('rig_ui'):
                 data_to.texts.append(t)
@@ -202,22 +183,11 @@ def import_asset(self, context,
             else:
                 other_assets.append(o)
                 other_grp = grp.name
-                # if grp in other_assets:
-                #     other_assets[grp].append(o)
-                # else:
-                #     other_assets[grp] = [o]
-                # other_assets.append(o)
 
                 # Assign props.
                 # They will be read back if the asset is used recursively.
                 o['asset_uuid'] = new_asset_uuid
-                if addon_prefs.lfs_mode:
-                    o['asset_name'] = asset_name
                 o['lib_path'] = path
-
-            # if o.type == "ARMATURE":
-            #     context.scene.objects.active = o
-            # add_object_to_group(o, asset_family.upper())
 
     if original_assets:
         for uuid, props in original_assets.items():
@@ -226,8 +196,6 @@ def import_asset(self, context,
 
             new_item = context.scene.imported_items.add()
             new_item.name = group.name
-            if addon_prefs.lfs_mode:
-                new_item.asset_name = props['asset_name']
             new_item.lib_path = props['lib_path']
             new_item.asset_uuid = uuid + ' ' + new_asset_uuid
 
@@ -241,8 +209,6 @@ def import_asset(self, context,
     if other_assets:
         new_item = context.scene.imported_items.add()
         new_item.name = other_grp
-        if addon_prefs.lfs_mode:
-            new_item.asset_name = asset_name
         new_item.lib_path = path
         new_item.asset_uuid = new_asset_uuid
         for o in other_assets:
@@ -278,16 +244,11 @@ class ImportPantinFromLIB(bpy.types.Operator):
     bl_label = "Import Pantin"
     bl_options = {'REGISTER', 'UNDO'}
 
-    # callback_idx = bpy.props.StringProperty(default='', options={"HIDDEN"})
-
-    # lib_path = bpy.props.StringProperty()
     filepath = bpy.props.StringProperty(subtype="FILE_PATH")
-    asset_name = bpy.props.StringProperty()
 
     def execute(self, context):
         import_asset(self, context,
-                     self.filepath,
-                     self.asset_name)
+                     self.filepath)
 
         return {'FINISHED'}
 
@@ -456,10 +417,7 @@ class PantinReload(bpy.types.Operator):
     bl_description = "Reload"
     bl_options = {"REGISTER", "UNDO"}
 
-    # callback_idx = bpy.props.StringProperty(default='', options={"HIDDEN"})
-
     item = bpy.props.StringProperty(default="", options={"HIDDEN"})
-    # reload_objects = bpy.props.BoolProperty(name="Reload Missing Objects", default=False, )
 
     @classmethod
     def poll(cls, context):
@@ -468,7 +426,6 @@ class PantinReload(bpy.types.Operator):
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_confirm(self, event)
-        # return wm.invoke_props_dialog(self)
 
     def execute(self, context):
         print("Reloading " + self.item)
@@ -480,11 +437,11 @@ class PantinReload(bpy.types.Operator):
         old_uuids = {odb.name: odb for odb in old_item.datablocks}
 
         # Import new asset based on old one's data
-        (asset_name, lib_path, asset_uuid) = (old_item.asset_name, old_item.lib_path, old_item.asset_uuid)
+        (lib_path, asset_uuid) = (old_item.lib_path, old_item.asset_uuid)
         # Get only last part (local) of uuid
         asset_uuid = asset_uuid.split(" ")[-1]
         new_item = import_asset(self,
-                                context, lib_path, asset_name,
+                                context, lib_path,
                                 new_asset_uuid=asset_uuid, reload=True)
         new_item_name = new_item.name  # for pointer change later (?)
         old_item.name = old_name
@@ -510,8 +467,8 @@ class PantinReload(bpy.types.Operator):
                     new_grp = bpy.data.groups[db.db_name]
                     # renaming data blocks
                     tmp_name = old_grp.name
-                    old_grp.name += ".DEL"  # tmp_name
-                    new_grp.name = tmp_name  # old_grp.name
+                    old_grp.name += ".DEL"
+                    new_grp.name = tmp_name
                     db.db_name = tmp_name
                     old_db.db_name = old_grp.name
             elif db.id_type == "Text":
@@ -520,8 +477,8 @@ class PantinReload(bpy.types.Operator):
                     new_txt = bpy.data.texts[db.db_name]
                     # renaming data blocks
                     tmp_name = old_txt.name
-                    old_txt.name += ".DEL"  # tmp_name
-                    new_txt.name = tmp_name  # old_txt.name
+                    old_txt.name += ".DEL"
+                    new_txt.name = tmp_name
                     db.db_name = tmp_name
                     old_db.db_name = old_txt.name
 
@@ -529,8 +486,6 @@ class PantinReload(bpy.types.Operator):
                 # variations
                 if old_db.variations:
                     db.active_variation = old_db.active_variation
-                    # print('VARS', db, ':', old_db.active_variation, db.active_variation)
-                    # plane_update(db)
 
                 if (db.db_name != old_db.db_name
                         and old_db.db_name in bpy.context.scene.objects):
@@ -547,9 +502,6 @@ class PantinReload(bpy.types.Operator):
                             and old_obj.parent.name not in
                             [db.db_name for db in old_item.datablocks]):
                         print(old_obj.parent.name)
-                        # old_parent_uuid = old_obj.parent['db_uuid']
-                        # new_parent = new_item.datablocks[old_parent_uuid]
-                        # new_obj.parent = bpy.data.objects[new_parent.name]
                         new_obj.parent = old_obj.parent
                         new_obj.parent_type = old_obj.parent_type
                         new_obj.parent_bone = old_obj.parent_bone
@@ -612,17 +564,15 @@ class PantinReload(bpy.types.Operator):
                             new_obj.material_slots[m_i].material.name = m_slot.material.name
                         new_obj['asset_uuid'] = old_item.asset_uuid
 
-                else:  # old_db.db_name already not in bpy.data.objects
+                else:
                     print('OLD:', old_db.db_name)
                     old_item.datablocks.remove(
                         old_item.datablocks.find(old_db.name))
 
         old_uuid = old_item.asset_uuid
         new_item.asset_uuid = old_uuid
-        # bpy.ops.lfs.pantin_select(item=new_item.name)
         pantin_select(self, context, new_item)
         imported_items.update()
-        # context.scene.update()
         print('TO DELETE:', old_item)
         pantin_delete(self, context, old_item)
         imported_items[new_item_name].name = self.item
@@ -630,12 +580,7 @@ class PantinReload(bpy.types.Operator):
 
 
 def pantin_delete(self, context, item=None):
-    # if context.object is not None:
-    #     bpy.ops.object.mode_set(mode='OBJECT')
     imported_items = context.scene.imported_items
-    # if item is not None:
-    #     item = item
-    # else:
     if item is None:
         item = imported_items[self.item]
     for db in item.datablocks:
@@ -652,7 +597,6 @@ def pantin_delete(self, context, item=None):
                 )
 
         elif db.id_type == "Text":
-            # print(db.db_name)
             try:
                 txt = bpy.data.texts[db.db_name]
                 txt.user_clear()
@@ -712,13 +656,9 @@ def get_image_texture_name(obj):
 
 def list_textures(self, context, item=None):
     imported_items = context.scene.imported_items
-    # if item is not None:
-    #     item = imported_items[item]
-    # else:
     if item is None:
         item = imported_items[self.item]
 
-    asset_name = item.asset_name
     lib_path = item.lib_path
 
     dirpath = os.path.dirname(lib_path)
@@ -732,7 +672,6 @@ def list_textures(self, context, item=None):
     files = [os.path.basename(p) for p in files if p.endswith('.png')]
     if files:
         files.sort()
-    # print(files)
     assets = {}
     rexp = re.compile("([a-zA-Z0-9_\-\.]+)(_[A-Z]+)$")
     old_db_variation = {
@@ -740,7 +679,6 @@ def list_textures(self, context, item=None):
         if db.id_type == 'Object'
     }
     old_item_variation = item.active_variation
-    # reset var, to have the initial filepaths for all textures
     item.active_variation = 0
 
     for db in item.datablocks:
@@ -774,7 +712,6 @@ def list_textures(self, context, item=None):
 
     variations = set()
     for ass in assets.values():
-        # print(ass)
         variations.update(ass)
     item.variations.clear()
     for var in sorted(variations):
@@ -791,7 +728,6 @@ class PantinListTextures(bpy.types.Operator):
     bl_idname = "lfs.pantin_list_textures"
     bl_label = "List Textures"
     bl_description = "Refresh texture list"
-    # bl_description = "List Textures"
     bl_options = {'REGISTER', 'UNDO'}
 
     item = bpy.props.StringProperty(default="")
@@ -917,7 +853,6 @@ class CRIQUET_UL_variations_list(bpy.types.UIList):
                   layout, data,
                   item, icon,
                   active_data, active_propname):
-        # arm = data
         # draw_item must handle the three layout types...
         # Usually 'DEFAULT' and 'COMPACT' can share the same code.
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -978,10 +913,16 @@ class PantinsPanel(bpy.types.Panel):
                               "active_asset",
                               rows=5)
             row = layout.row()
-            op = layout.operator("lfs.import_pantin_from_lib")
             if len(addon_prefs.lib_paths) and len(settings.assets):
-                op.filepath = addon_prefs.lib_paths[addon_prefs.active_lib].name
-                op.asset_name = settings.assets[settings.active_asset].name
+                path = addon_prefs.lib_paths[addon_prefs.active_lib].name
+                path = os.path.join(path, settings.assets[settings.active_asset].name, 'actor')
+                for i in os.listdir(path):
+                    if i.endswith('_REF.blend'):
+                        path = os.path.join(path, i)
+                        break
+
+                op = layout.operator("lfs.import_pantin_from_lib")
+                op.filepath = path
             else:
                 row.active = False
         else:
@@ -1116,14 +1057,11 @@ bpy.utils.register_class(Texture_Variations)
 def plane_update(db):
     if db.variations:
         suffix = db.variations[db.active_variation].name
-        # print(suffix)
         if db.id_type == 'Object' and suffix in db.variations:
             separate_texture = True
             filepath = db.variations[suffix].filepath
             set_texture(bpy.data.objects[db.db_name],
                         filepath, separate_texture)
-            # print(bpy.data.objects[db.name])
-        # # print(self.variations[self.active_variation].name)
 
 
 def plane_update_callback(self, context):
@@ -1202,7 +1140,6 @@ def select_update(self, context):
 class Imported_Item(bpy.types.PropertyGroup):
     asset_uuid = bpy.props.StringProperty(name="Asset UUID", default='')
     lib_path = bpy.props.StringProperty(name="Asset Lib Path", default='')
-    asset_name = bpy.props.StringProperty(name="Asset Name", default='')
     datablocks = bpy.props.CollectionProperty(name="Datablocks",
                                               type=DataBlock)
     variations = bpy.props.CollectionProperty(name="Variations",
