@@ -38,10 +38,6 @@ from bpy.types import AddonPreferences
 
 
 def export_animation(op, obj, root):
-    # get pantin type, family, name
-    # asset_type = obj['asset_type']
-    # asset_family = obj['asset_family']
-    # asset_name = obj['asset_name']
     actor_filepath = obj['lib_path']
 
     # construct action_name
@@ -49,9 +45,6 @@ def export_animation(op, obj, root):
         op.report({"ERROR"}, "Please choose a name")
         return {"CANCELLED"}
     action_name = 'LIB_animation_{anim_type}-{anim_name}'.format(
-        # at=asset_type,
-        # af=asset_family,
-        # an=asset_name,
         anim_name=bpy.path.clean_name(op.anim_name).replace('_', '-'),
         anim_type=op.anim_type)
     print('action_name:', action_name)
@@ -61,21 +54,12 @@ def export_animation(op, obj, root):
 
     bpy.ops.wm.save_mainfile()
 
-    # # construct actor_filepath
-    # actor_filepath = os.path.join(
-    #     root,
-    #     'LIB_{at}_{af}_{an}_actor_REF.blend'.format(
-    #         at=asset_type, af=asset_family, an=asset_name))
-
     print('actor_filepath:', actor_filepath)
     # construct anim_filepath
     anim_filepath = os.path.join(
         root,
         'animations',
         '{action_name}_v01.blend'.format(
-            # at=asset_type,
-            # af=asset_family,
-            # an=asset_name,
             action_name=action_name))
     anim_filepath = file_utils.get_latest_version_by_number(anim_filepath)[1]
     print('anim_filepath:', anim_filepath)
@@ -135,7 +119,6 @@ print(scene.render.filepath)
 """.format(render_filepath=render_filepath)
 
     args = ['blender', '-b', actor_filepath, '--python-expr', script]
-    # print(blend_script)
     sp = subprocess.Popen(args, stderr=subprocess.PIPE)
     out, err = sp.communicate()
     if err:
@@ -200,7 +183,6 @@ class SaveAnimation(bpy.types.Operator):
         col.label(text="This file will be saved", icon='ERROR')
 
     def execute(self, context):
-        # self.anim_name = re.sub('[_ ]', '-', self.anim_name).lower()
         self.anim_name = bpy.path.clean_name(self.anim_name, replace='-').lower()
 
         user_preferences = context.user_preferences
@@ -213,19 +195,6 @@ class SaveAnimation(bpy.types.Operator):
 
 def get_pantin_anims(obj):
     """List animation blends in asset's library."""
-    # if 'asset_name' in obj:
-        # get pantin type, family, name
-        # asset_type = obj['asset_type']
-        # asset_family = obj['asset_family']
-        # asset_name = obj['asset_name']
-
-    # anim_dirpath = os.path.join(
-    #     root,
-        # '{at}/{af}/{an}/animation/'.format(
-        #     at=asset_type,
-        #     af=asset_family,
-        #     an=asset_name,))
-
     user_preferences = bpy.context.user_preferences
     addon_prefs = user_preferences.addons[__name__].preferences
     lib_path = addon_prefs.lib_path
@@ -238,10 +207,6 @@ def get_pantin_anims(obj):
              if f.endswith('.blend')
              }
     return anims
-    # return {anim: os.path.join(anim_dirpath, anim) for anim in anims}
-    # else:
-    #     return dict()
-
 
 def import_animation(op, obj):
     anim_path = get_pantin_anims(obj)[op.anim_name]
@@ -300,21 +265,11 @@ class AnimationLibPanel(bpy.types.Panel):
 class AnimationLibPreferences(AddonPreferences):
     bl_idname = __name__
 
-    # lfs_mode = bpy.props.BoolProperty(name="LFS Mode",
-    #                                   default=False)
-    # lib_paths = bpy.props.CollectionProperty(
-    #         name="LIB Paths",
-    #         type=bpy.types.PropertyGroup,
-    #         )
-    # active_lib = bpy.props.IntProperty(name="Active Lib",
-    #                                    update=update_asset)
     lib_path = bpy.props.StringProperty(name="Lib Path", subtype='DIR_PATH')
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "lib_path")
-
-
 
 
 def register():
