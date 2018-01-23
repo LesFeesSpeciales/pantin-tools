@@ -133,7 +133,6 @@ print(scene.render.filepath)
             print(img)
             print(os.path.join(del_dir, img))
             os.remove(os.path.join(del_dir, img))
-        movie_utils.play_file(os.path.join(input_dir, image_name+'.mov'))
 
 
 def default_anim_name(obj):
