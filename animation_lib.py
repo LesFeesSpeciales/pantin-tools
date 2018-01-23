@@ -282,8 +282,8 @@ class AnimLibAnimationLibPanel(bpy.types.Panel):
             layout.separator()
             col = layout.column(align=True)
             col.label(text='Import...')
-            row = col.row(align=True)
             for anim in sorted(anims):
+                row = col.row(align=True)
                 row.operator('lfs.animation_lib_import_animation',
                              text=anim.capitalize()).anim_name = anim
                 if os.path.isfile(anims[anim][1]):
