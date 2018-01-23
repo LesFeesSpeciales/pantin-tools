@@ -35,6 +35,7 @@ from bpy.types import Operator
 from rna_prop_ui import rna_idprop_ui_prop_get
 from uuid import uuid4
 from bpy.props import StringProperty
+from bpy.app.handlers import persistent
 
 def strip_numbers(name):
     """ Returns the name with trailing numbers stripped from it.
@@ -494,24 +495,24 @@ class VIEW3D_PT_rig_plane_variations(bpy.types.Panel):
         col.operator("lfs.delete_variation")
 
 
+@persistent
+def handler_add_uuids(truc):
+    if '_actor_' in bpy.data.filepath:
+        for arm in bpy.data.armatures:
+            if 'rig_id' in arm:
+                print(arm)
+                bpy.ops.lfs.add_uuid()
+                break
+
+
 def register():
     bpy.utils.register_module(__name__)
-    # bpy.utils.register_class(OBJECT_OT_parent_planes_to_bones)
-    # bpy.utils.register_class(OBJECT_OT_unparent_planes_from_bones)
-    # bpy.utils.register_class(OBJECT_OT_add_new_plane_variations)
-    # bpy.utils.register_class(OBJECT_OT_remove_plane_variation)
-    # bpy.utils.register_class(VIEW3D_PT_parent_planes_to_bones)
-    # bpy.utils.register_class(VIEW3D_PT_rig_plane_variations)
+    bpy.app.handlers.save_pre.append(handler_add_uuids)
 
 
 def unregister():
     bpy.utils.unregister_module(__name__)
-    # bpy.utils.unregister_class(OBJECT_OT_parent_planes_to_bones)
-    # bpy.utils.unregister_class(OBJECT_OT_unparent_planes_from_bones)
-    # bpy.utils.unregister_class(OBJECT_OT_add_new_plane_variations)
-    # bpy.utils.unregister_class(OBJECT_OT_remove_plane_variation)
-    # bpy.utils.unregister_class(VIEW3D_PT_parent_planes_to_bones)
-    # bpy.utils.unregister_class(VIEW3D_PT_rig_plane_variations)
+    bpy.app.handlers.save_pre.remove(handler_add_uuids)
 
 
 if __name__ == "__main__":
