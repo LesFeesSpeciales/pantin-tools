@@ -127,7 +127,7 @@ print(scene.render.filepath)
     if op.do_blast:
         input_dir, image_name = os.path.split(render_filepath)
         movie_utils.convert_images(input_dir, image_name, input_dir, image_name,
-                           frame_rate=24, frame_start=1, input_extension='png')
+                           frame_rate=25, frame_start=obj.animation_data.action.frame_range[0], input_extension='png')
         del_dir = os.path.join(input_dir, image_name + "*" + '.png')
         for img in glob.glob(del_dir):
             print(img)
