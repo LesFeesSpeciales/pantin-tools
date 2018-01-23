@@ -32,7 +32,7 @@ import os
 import glob
 import re
 import subprocess
-from dil_utils import file_utils, movie_utils
+from utils import file_utils, movie_utils
 from bpy.props import EnumProperty, StringProperty, BoolProperty
 from bpy.types import AddonPreferences
 
@@ -156,9 +156,10 @@ class SaveAnimation(bpy.types.Operator):
     bl_description = ""
     bl_options = {"REGISTER"}
 
-    type_items = (('fixe', 'Fixe', 'Fixe'),
+    type_items = (
                   ('marche', 'Marche', 'Marche'),
                   ('course', 'Course', 'Course'),
+                  ('fixe', 'Fixe', 'Fixe'),
                   ('action', 'Action', 'Action'),
                   )
     anim_name = StringProperty(name='Name', default="")
@@ -198,24 +199,35 @@ def get_pantin_anims(obj):
     user_preferences = bpy.context.user_preferences
     addon_prefs = user_preferences.addons[__name__].preferences
     lib_path = addon_prefs.lib_path
-    lib_path = os.path.join(lib_path, 'animations')
+    # lib_path = os.path.join(lib_path, 'animations')
 
     if not os.path.isdir(lib_path):
         return dict()
-    anims = {f.split('_')[-2]: os.path.join(lib_path, f)
-             for f in sorted(os.listdir(lib_path))
-             if f.endswith('.blend')
-             }
+
+    anims = {}
+    for f in sorted(os.listdir(os.path.join(lib_path, 'animations'))):
+        if f.endswith('.blend'):
+            anim_path = os.path.join(lib_path, 'animations', f)
+
+            blast_path = os.path.join(lib_path, 'blasts', f)
+            blast_path = re.findall('^(.+)_v[0-9]+(\..+$)', blast_path)[0][0]
+            blast_path += ".mov"
+
+            anims[f.split('_')[-2]] = [anim_path, blast_path]
     return anims
 
+
 def import_animation(op, obj):
-    anim_path = get_pantin_anims(obj)[op.anim_name]
+    anim_path = get_pantin_anims(obj)[op.anim_name][0]
+    anim_name = 'LIB_animation_' + op.anim_name
     with bpy.data.libraries.load(anim_path, link=False) as (data_from, data_to):
-        data_to.actions = data_from.actions[:1]  # get only first action...
+        data_to.actions = [anim_name]  # get only first action...
+        # TODO: import action based on name !
     if obj.animation_data is None:
         obj.animation_data_create()
     obj.animation_data.action = data_to.actions[0]
     # TODO: import armature, apply transforms, delete armature
+
 
 class ImportAnimation(bpy.types.Operator):
     bl_idname = "lfs.animation_lib_import_animation"
@@ -234,7 +246,20 @@ class ImportAnimation(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class AnimationLibPanel(bpy.types.Panel):
+class AnimLibPlayAnimation(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "lfs.animation_lib_play_animation"
+    bl_label = "Play Animation"
+
+    anim_path = StringProperty()
+
+    def execute(self, context):
+        print(self.anim_path)
+        movie_utils.play_file(self.anim_path)
+        return {'FINISHED'}
+
+
+class AnimLibAnimationLibPanel(bpy.types.Panel):
     bl_idname = "lfs.animation_lib_panel"
     bl_label = "Animation Lib"
     bl_space_type = "VIEW_3D"
@@ -252,14 +277,18 @@ class AnimationLibPanel(bpy.types.Panel):
         col = layout.column(align=True)
         col.operator('lfs.animation_lib_save_animation')
 
-        anims = get_pantin_anims(context.object).keys()
+        anims = get_pantin_anims(context.object)  # .keys()
         if anims:
             layout.separator()
             col = layout.column(align=True)
             col.label(text='Import...')
+            row = col.row(align=True)
             for anim in sorted(anims):
-                col.operator('lfs.animation_lib_import_animation',
+                row.operator('lfs.animation_lib_import_animation',
                              text=anim.capitalize()).anim_name = anim
+                if os.path.isfile(anims[anim][1]):
+                    row.operator('lfs.animation_lib_play_animation',
+                                 text="", icon="PLAY").anim_path = anims[anim][1]
 
 
 class AnimationLibPreferences(AddonPreferences):
