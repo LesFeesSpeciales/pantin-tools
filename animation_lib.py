@@ -130,8 +130,7 @@ print(scene.render.filepath)
                            frame_rate=25, frame_start=obj.animation_data.action.frame_range[0], input_extension='png')
         del_dir = os.path.join(input_dir, image_name + "*" + '.png')
         for img in glob.glob(del_dir):
-            print(img)
-            print(os.path.join(del_dir, img))
+            print("Removing", os.path.join(del_dir, img))
             os.remove(os.path.join(del_dir, img))
 
 
@@ -221,20 +220,73 @@ def import_animation(op, obj):
     anim_name = 'LIB_animation_' + op.anim_name
     with bpy.data.libraries.load(anim_path, link=False) as (data_from, data_to):
         data_to.actions = [anim_name]  # get only first action...
-        # TODO: import action based on name !
+        # TODO: import action based on name!
     if obj.animation_data is None:
         obj.animation_data_create()
-    obj.animation_data.action = data_to.actions[0]
+    if op.apply_to_selected:
+        selected_bone_paths = [b.path_from_id() for b in bpy.context.selected_pose_bones]
+        # Get dst action
+        if obj.animation_data.action is None:
+            obj.animation_data.action = bpy.data.actions.new(obj.name+'Action')
+        action_dst = obj.animation_data.action
+        # Get src action
+        action_src = data_to.actions[0]
+
+        for curve_src in action_src.fcurves:
+            # Get bone data path from source curve
+            bone_data_path = curve_src.data_path
+            bone_data_path = bone_data_path.split('.')[:-1]
+            bone_data_path = '.'.join(bone_data_path)  # remove trailing prop
+            # Check that bone is selected
+            if bone_data_path in selected_bone_paths:
+                # Get dst curve
+                curve_dst = action_dst.fcurves.find(curve_src.data_path,
+                                                    curve_src.array_index,)
+                if curve_dst is not None:
+                    # Delete dst keyframe points
+                    while len(curve_dst.keyframe_points):
+                        curve_dst.keyframe_points.remove(curve_dst.keyframe_points[0])
+                else:
+                    # Create fcurve is not exists
+                    curve_dst = action_dst.fcurves.new(curve_src.data_path,
+                                                       curve_src.array_index,
+                                                       curve_src.group.name)
+                # Copy curve props
+                curve_dst.extrapolation = curve_src.extrapolation
+                curve_dst.color = curve_src.color
+                curve_dst.color_mode = curve_src.color_mode
+                curve_dst.mute = curve_src.mute
+                curve_dst.mute = curve_src.mute
+
+                # Copy keyframe points
+                for pt_src in curve_src.keyframe_points:
+                    pt_dst = curve_dst.keyframe_points.insert(*pt_src.co,
+                                                              set(),
+                                                              pt_src.type,)
+                    pt_dst.easing = pt_src.easing
+                    pt_dst.handle_left_type = pt_src.handle_left_type
+                    pt_dst.handle_left = pt_src.handle_left
+                    pt_dst.handle_right_type = pt_src.handle_right_type
+                    pt_dst.handle_right = pt_src.handle_right
+                    pt_dst.interpolation = pt_src.interpolation
+                    pt_dst.period = pt_src.period
+                    pt_dst.amplitude = pt_src.amplitude
+                    pt_dst.back = pt_src.back
+    else:
+        obj.animation_data.action = data_to.actions[0]
+
+    # TODO: delete imported action
     # TODO: import armature, apply transforms, delete armature
 
 
 class ImportAnimation(bpy.types.Operator):
     bl_idname = "lfs.animation_lib_import_animation"
     bl_label = "Import Animation"
-    bl_description = ""
+    bl_description = "Import animation to active object"
     bl_options = {"REGISTER"}
 
     anim_name = StringProperty(name='Name', default="")
+    apply_to_selected = BoolProperty(default=False)
 
     @classmethod
     def poll(cls, context):
@@ -283,11 +335,22 @@ class AnimLibAnimationLibPanel(bpy.types.Panel):
             col.label(text='Import...')
             for anim in sorted(anims):
                 row = col.row(align=True)
-                row.operator('lfs.animation_lib_import_animation',
-                             text=anim.capitalize()).anim_name = anim
-                if os.path.isfile(anims[anim][1]):
-                    row.operator('lfs.animation_lib_play_animation',
-                                 text="", icon="PLAY").anim_path = anims[anim][1]
+
+                op = row.operator('lfs.animation_lib_import_animation',
+                                  text=anim.capitalize())
+                op.anim_name = anim
+                op.apply_to_selected = False
+
+                op = row.operator('lfs.animation_lib_import_animation',
+                                  text="", icon="RESTRICT_SELECT_OFF")
+                op.anim_name = anim
+                op.apply_to_selected = True
+
+                sub = row.column(align=True)
+                sub.active = os.path.isfile(anims[anim][1])
+                op = sub.operator('lfs.animation_lib_play_animation',
+                                  text="", icon="PLAY")
+                op.anim_path = anims[anim][1]
 
 
 class AnimationLibPreferences(AddonPreferences):
