@@ -242,15 +242,16 @@ def import_animation(op, obj):
                 # Get dst curve
                 curve_dst = action_dst.fcurves.find(curve_src.data_path,
                                                     curve_src.array_index,)
-                if curve_dst is not None:
-                    # Delete dst keyframe points
-                    while len(curve_dst.keyframe_points):
-                        curve_dst.keyframe_points.remove(curve_dst.keyframe_points[0])
-                else:
+                if curve_dst is None:
                     # Create fcurve is not exists
                     curve_dst = action_dst.fcurves.new(curve_src.data_path,
                                                        curve_src.array_index,
                                                        curve_src.group.name)
+                # else:
+                #     # Delete dst keyframe points
+                #     while len(curve_dst.keyframe_points):
+                #         curve_dst.keyframe_points.remove(curve_dst.keyframe_points[0])
+
                 # Copy curve props
                 curve_dst.extrapolation = curve_src.extrapolation
                 curve_dst.color = curve_src.color
@@ -260,7 +261,11 @@ def import_animation(op, obj):
 
                 # Copy keyframe points
                 for pt_src in curve_src.keyframe_points:
-                    pt_dst = curve_dst.keyframe_points.insert(*pt_src.co,
+                    co = list(pt_src.co)
+                    print(co)
+                    co[0] -= action_src.frame_range[0]
+                    co[0] += bpy.context.scene.frame_current_final
+                    pt_dst = curve_dst.keyframe_points.insert(*co,
                                                               set(),
                                                               pt_src.type,)
                     pt_dst.easing = pt_src.easing
