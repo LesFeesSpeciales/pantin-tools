@@ -259,20 +259,29 @@ def import_animation(op, obj):
                 curve_dst.mute = curve_src.mute
                 curve_dst.mute = curve_src.mute
 
+
                 # Copy keyframe points
                 for pt_src in curve_src.keyframe_points:
                     co = list(pt_src.co)
-                    print(co)
                     co[0] -= action_src.frame_range[0]
                     co[0] += bpy.context.scene.frame_current_final
+
+                    hl = list(pt_src.handle_left)
+                    hl[0] -= action_src.frame_range[0]
+                    hl[0] += bpy.context.scene.frame_current_final
+
+                    hr = list(pt_src.handle_right)
+                    hr[0] -= action_src.frame_range[0]
+                    hr[0] += bpy.context.scene.frame_current_final
+
                     pt_dst = curve_dst.keyframe_points.insert(*co,
                                                               set(),
                                                               pt_src.type,)
                     pt_dst.easing = pt_src.easing
                     pt_dst.handle_left_type = pt_src.handle_left_type
-                    pt_dst.handle_left = pt_src.handle_left
+                    pt_dst.handle_left = hl
                     pt_dst.handle_right_type = pt_src.handle_right_type
-                    pt_dst.handle_right = pt_src.handle_right
+                    pt_dst.handle_right = hr
                     pt_dst.interpolation = pt_src.interpolation
                     pt_dst.period = pt_src.period
                     pt_dst.amplitude = pt_src.amplitude
