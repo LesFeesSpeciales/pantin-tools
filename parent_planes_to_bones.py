@@ -65,7 +65,9 @@ def do_parenting(arm, bone, plane, grp, plane_meshes=None):
     # Fix for shear matrix: set the plane's space to the parent bone's
     parent_pbone = arm.pose.bones[bone.name]
     # print(parent_pbone)
-    if plane_meshes is None or not plane.data in plane_meshes: # mesh has not yet been processed
+    if (plane.type =='MESH'
+            and (plane_meshes is None
+                 or not plane.data in plane_meshes)): # mesh has not yet been processed
         for v in plane.data.vertices:
             v.co = (arm.matrix_world * parent_pbone.matrix).inverted() * mat * v.co
         if plane_meshes is not None:
@@ -85,6 +87,7 @@ def do_parenting(arm, bone, plane, grp, plane_meshes=None):
 
 def parent_planes_to_bones(self, context):
     arm = context.object
+    # Store initial position
     initial_position = arm.data.pose_position
     arm.data.pose_position = 'REST'
     context.scene.update()
@@ -105,86 +108,43 @@ def parent_planes_to_bones(self, context):
     if not arm.name in grp.objects:
         grp.objects.link(arm)
 
-    plane_meshes = []
+    parented_now = []
+
+    # Get previous list of bone parenting (from unparent)
+    if 'to_parent' in arm:
+        to_parent = arm['to_parent'].to_dict()
+        for obj, b in to_parent.items():
+            if obj in bpy.data.objects:
+                do_parenting(arm, arm.data.bones[b], bpy.data.objects[obj], grp)
+                parented_now.append(obj)
+            else:
+                self.report({"WARNING"}, "Could not find object %s" % obj)
+        # Delete list
+        del arm['to_parent']
+
     for b in arm.data.bones:
         if b.use_deform:
             bone_name = b.name
+            # Strip DEF
             if bone_name[:4] == 'DEF-':
                 bone_name = bone_name[4:]
-            if bone_name[-2:] in ['.L', '.R']:
-                obj_name, suffix = bone_name[:-2].replace(' ', '_'), bone_name[-2:]
-                # Check for object existing
-                if obj_name + suffix in bpy.data.objects:
-                    obj_name += suffix
-                    new_name = obj_name
-                elif obj_name + SUFFIX_HIERARCHY[suffix] in bpy.data.objects:
-                    new_name = obj_name + suffix
-                    obj_name += SUFFIX_HIERARCHY[suffix]
-                elif obj_name + suffix.replace('.', '_') in bpy.data.objects:
-                    new_name = obj_name + suffix.replace('.', '_')
-                    obj_name = new_name
-                elif obj_name in bpy.data.objects:
-                    new_name = obj_name + suffix
-                else:
-                    self.report({"WARNING"}, "Could not find object %s (%s)" % (obj_name, suffix))
-                    continue
+            # Get all objects matching bone name start
+            for obj in bpy.data.objects:
+                if obj.name.startswith(bone_name):
+                    # Check that object is not already parented
+                    if (obj.parent == arm
+                            and obj.parent_bone == b.name):
+                        if obj.name not in parented_now:  # Object not parented in this calling
+                            self.report({"WARNING"}, "Object %s already child of bone %s" % (obj.name, b.name))
+                    else:
+                        do_parenting(arm, b, obj, grp)
 
-                p = bpy.data.objects[obj_name]
-
-                # Check that object is not already parented
-                if bone_name.replace(' ', '_') in context.scene.objects and (context.scene.objects[bone_name.replace(' ', '_')].parent == arm and context.scene.objects[bone_name.replace(' ', '_')].parent_bone == b.name):
-                    self.report({"WARNING"}, "Object %s already child of bone %s" % (obj_name, b.name))
-                    continue
-                if new_name in bpy.context.scene.objects:
-                    p = bpy.data.objects[new_name]
-                    # bpy.context.scene.objects.unlink(bpy.data.objects[new_name])
-                elif obj_name in bpy.data.objects:
-                    do_reapply_mat = False
-                    grps = p.users_group
-                    for g in grps:
-                        g.objects.unlink(p)
-                    if obj_name in bpy.context.scene.objects:
-                        do_reapply_mat = True
-                        mat = p.matrix_world.copy()
-                        bpy.context.scene.objects.unlink(bpy.data.objects[obj_name])
-                        bpy.data.objects[obj_name].user_clear()
-                    p = bpy.data.objects.new(new_name, p.data)
-                    bpy.context.scene.objects.link(p)
-                    for g in grps:
-                        g.objects.link(p)
-                    if do_reapply_mat:
-                        p.matrix_world = mat
-
-
-                # elif obj_name in bpy.context.scene.objects: # copy original object
-                #     mat = p.matrix_world.copy()
-                #     bpy.context.scene.objects.unlink(bpy.data.objects[obj_name])
-                #     bpy.data.objects[obj_name].user_clear()
-                #     p = bpy.data.objects.new(new_name, p.data)
-                #     bpy.context.scene.objects.link(p)
-                #     p.matrix_world = mat
-                # elif obj_name in bpy.data.objects: # copy original object
-                #     # mat = p.matrix_world.copy()
-                #     # bpy.context.scene.objects.unlink(bpy.data.objects[obj_name])
-                #     # bpy.data.objects[obj_name].user_clear()
-                #     p = bpy.data.objects.new(new_name, p.data)
-                #     bpy.context.scene.objects.link(p)
-                #     # p.matrix_world = mat
-                #     print(obj_name)
-            else:
-                if not bone_name.replace(' ', '_') in bpy.data.objects:
-                    self.report({"WARNING"}, "Could not find object %s" % bone_name)
-                    continue
-                p = bpy.data.objects[bone_name.replace(' ', '_')]
-
-            plane_meshes = do_parenting(arm, b, p, grp, plane_meshes)
-
-#                print("Could not connect", s.name)
+    # Restore initial position
     arm.data.pose_position = initial_position
 
-    # uuid in texts
+    # Assign uuids to texts
     for txt in bpy.data.texts:
-        if txt.name.startswith('rig_ui') and not "db_uuid" in txt:
+        if txt.name.startswith('rig_ui') and "db_uuid" not in txt:
             txt["db_uuid"] = str(uuid4())
 
 
@@ -194,13 +154,20 @@ def unparent_planes_from_bones(self, context):
     arm.data.pose_position = 'REST'
     context.scene.update()
 
+    if 'to_parent' in arm:
+        to_parent = arm['to_parent'].to_dict()
+    else:
+        to_parent = dict()
+
     for child in arm.children:
         if child.type == 'MESH':
+            to_parent[child.name] = child.parent_bone
             mat = child.matrix_world.copy()
             child.parent = None
             child.matrix_world = mat
             child.hide_select = False
 
+    arm['to_parent'] = to_parent
     arm.data.pose_position = initial_position
 
 
