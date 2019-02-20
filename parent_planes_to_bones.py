@@ -18,8 +18,8 @@
 bl_info = {
     "name": "Parent planes to bones",
     "author": "Les Fees Speciales",
-    "version": (1, 0),
-    "blender": (2, 77, 0),
+    "version": (1, 1),
+    "blender": (2, 80, 0),
     "location": "View3D > Tool > Parent planes to bones",
     "description": "In-house tool to generate UUIDS for pantins at rig phase, used by other tools, "
                     "automatically parent planes to bones based on names, "
@@ -69,12 +69,12 @@ def do_parenting(arm, bone, plane, grp, plane_meshes=None):
             and (plane_meshes is None
                  or not plane.data in plane_meshes)): # mesh has not yet been processed
         for v in plane.data.vertices:
-            v.co = (arm.matrix_world * parent_pbone.matrix).inverted() * mat * v.co
+            v.co = (arm.matrix_world @ parent_pbone.matrix).inverted() @ mat @ v.co
         if plane_meshes is not None:
             plane_meshes.append(plane.data)
     # else:
     #     print(plane.name)
-    plane.matrix_world = arm.matrix_world * parent_pbone.matrix
+    plane.matrix_world = arm.matrix_world @ parent_pbone.matrix
 
     # Assign uuid to plane object
     if not "db_uuid" in plane:
@@ -97,16 +97,16 @@ def parent_planes_to_bones(self, context):
         arm["db_uuid"] = str(uuid4())
 
     # Group
-    if not arm.name in bpy.data.groups:
-        grp = bpy.data.groups.new(arm.name)
+    if not arm.name in bpy.data.collections:
+        coll = bpy.data.collections.new(arm.name)
     else:
-        grp = bpy.data.groups[arm.name]
+        coll = bpy.data.collections[arm.name]
 
-    if not "db_uuid" in grp:
-        grp["db_uuid"] = str(uuid4())
+    if not "db_uuid" in coll:
+        coll["db_uuid"] = str(uuid4())
 
-    if not arm.name in grp.objects:
-        grp.objects.link(arm)
+    if not arm.name in coll.objects:
+        coll.objects.link(arm)
 
     parented_now = []
 
@@ -115,7 +115,7 @@ def parent_planes_to_bones(self, context):
         to_parent = arm['to_parent'].to_dict()
         for obj, b in to_parent.items():
             if obj in bpy.data.objects:
-                do_parenting(arm, arm.data.bones[b], bpy.data.objects[obj], grp)
+                do_parenting(arm, arm.data.bones[b], bpy.data.objects[obj], coll)
                 parented_now.append(obj)
             else:
                 self.report({"WARNING"}, "Could not find object %s" % obj)
@@ -137,7 +137,7 @@ def parent_planes_to_bones(self, context):
                         if obj.name not in parented_now:  # Object not parented in this calling
                             self.report({"WARNING"}, "Object %s already child of bone %s" % (obj.name, b.name))
                     else:
-                        do_parenting(arm, b, obj, grp)
+                        do_parenting(arm, b, obj, coll)
 
     # Restore initial position
     arm.data.pose_position = initial_position
@@ -415,7 +415,7 @@ class VIEW3D_PT_parent_planes_to_bones(bpy.types.Panel):
     bl_label = "Parent planes to bones"
     bl_category = 'Tools'
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
     bl_category = "LFS"
 
 
@@ -473,12 +473,28 @@ def handler_add_uuids(truc):
 
 
 def register():
-    bpy.utils.register_module(__name__)
+    bpy.utils.register_class(OBJECT_OT_parent_planes_to_bones)
+    bpy.utils.register_class(OBJECT_OT_delete_variation)
+    bpy.utils.register_class(OBJECT_OT_add_new_plane_variations)
+    bpy.utils.register_class(OBJECT_OT_remove_plane_variation)
+    bpy.utils.register_class(OBJECT_OT_add_uuid)
+    bpy.utils.register_class(OBJECT_OT_unparent_planes_from_bones)
+    bpy.utils.register_class(VIEW3D_PT_parent_planes_to_bones)
+    bpy.utils.register_class(VIEW3D_PT_rig_plane_variations)
+
     bpy.app.handlers.save_pre.append(handler_add_uuids)
 
 
 def unregister():
-    bpy.utils.unregister_module(__name__)
+    bpy.utils.unregister_class(OBJECT_OT_parent_planes_to_bones)
+    bpy.utils.unregister_class(OBJECT_OT_delete_variation)
+    bpy.utils.unregister_class(OBJECT_OT_add_new_plane_variations)
+    bpy.utils.unregister_class(OBJECT_OT_remove_plane_variation)
+    bpy.utils.unregister_class(OBJECT_OT_add_uuid)
+    bpy.utils.unregister_class(OBJECT_OT_unparent_planes_from_bones)
+    bpy.utils.unregister_class(VIEW3D_PT_parent_planes_to_bones)
+    bpy.utils.unregister_class(VIEW3D_PT_rig_plane_variations)
+
     bpy.app.handlers.save_pre.remove(handler_add_uuids)
 
 
