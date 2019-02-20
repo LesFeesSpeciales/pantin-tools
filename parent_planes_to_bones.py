@@ -52,7 +52,7 @@ SUFFIX_HIERARCHY = {
     ".R": "_droit"
 }
 
-def do_parenting(arm, bone, plane, grp, plane_meshes=None):
+def do_parenting(arm, bone, plane, coll, plane_meshes=None):
     mat = plane.matrix_world.copy()
 
     plane.parent = arm
@@ -79,9 +79,9 @@ def do_parenting(arm, bone, plane, grp, plane_meshes=None):
     # Assign uuid to plane object
     if not "db_uuid" in plane:
         plane["db_uuid"] = str(uuid4())
-    # Add plane to group
-    if not plane.name in grp.objects:
-        grp.objects.link(plane)
+    # Add plane to collection
+    if not plane.name in coll.objects:
+        coll.objects.link(plane)
 
     return plane_meshes
 
@@ -96,7 +96,7 @@ def parent_planes_to_bones(self, context):
     if not "db_uuid" in arm:
         arm["db_uuid"] = str(uuid4())
 
-    # Group
+    # Collection
     if not arm.name in bpy.data.collections:
         coll = bpy.data.collections.new(arm.name)
     else:
@@ -199,7 +199,7 @@ class OBJECT_OT_delete_variation(Operator):
     bl_label = "Delete_variation"
     bl_options = {'REGISTER', 'UNDO'}
 
-    var_name = StringProperty()
+    var_name: StringProperty()
 
     @classmethod
     def poll(self, context):
@@ -219,7 +219,7 @@ class OBJECT_OT_delete_variation(Operator):
 
 
 def create_visibility_drivers(obj, arm, prop_name, value):
-    for path in ("hide", "hide_render"):
+    for path in ("hide_viewport", "hide_render"):
         driver = obj.driver_add(path)
         driver.driver.expression = 'vis != %s' % value
         vis_var = driver.driver.variables.new()
@@ -274,19 +274,19 @@ class OBJECT_OT_add_new_plane_variations(Operator):
         arm.data.pose_position = 'REST'
         context.scene.update()
 
-        grp = arm.users_group[0]
+        coll = arm.users_collection[0]
 
         for plane in planes:
             prop["soft_max"] += 1
             prop["max"] += 1
 
-            do_parenting(arm, pbone, plane, grp)
+            do_parenting(arm, pbone, plane, coll)
 
             # Create driver
             create_visibility_drivers(plane, arm, prop_name, prop["max"])
-            for group in arm.users_group:
-                if not plane.name in group.objects:
-                    group.objects.link(plane)
+            for collection in arm.users_collection:
+                if not plane.name in collection.objects:
+                    collection.objects.link(plane)
         arm.data.pose_position = initial_position
 
         return {'FINISHED'}
@@ -332,9 +332,9 @@ class OBJECT_OT_remove_plane_variation(Operator):
 
             # Delete drivers
             for driver in plane.animation_data.drivers:
-                if driver.data_path.startswith('hide'):
+                if driver.data_path.startswith('hide_viewport'):
                     plane.driver_remove(driver.data_path)
-            plane.hide = False
+            plane.hide_viewport = False
             plane.hide_render = False
 
             # The next lines are a bad idea, leaving them for reference
@@ -387,9 +387,9 @@ class OBJECT_OT_add_uuid(Operator):
             if txt.name.startswith('rig_ui') and not 'db_uuid' in txt:
                 txt['db_uuid'] = str(uuid4())
 
-        for grp in bpy.data.groups:
-            if not 'db_uuid' in grp:
-                grp['db_uuid'] = str(uuid4())
+        for coll in bpy.data.collections:
+            if not 'db_uuid' in coll:
+                coll['db_uuid'] = str(uuid4())
 
         return {'FINISHED'}
 
