@@ -90,7 +90,7 @@ def parent_planes_to_bones(self, context):
     # Store initial position
     initial_position = arm.data.pose_position
     arm.data.pose_position = 'REST'
-    context.scene.update()
+    context.view_layer.update()
 
     # Assign uuid to armature object
     if not "db_uuid" in arm:
@@ -152,7 +152,7 @@ def unparent_planes_from_bones(self, context):
     arm = context.object
     initial_position = arm.data.pose_position
     arm.data.pose_position = 'REST'
-    context.scene.update()
+    context.view_layer.update()
 
     if 'to_parent' in arm:
         to_parent = arm['to_parent'].to_dict()
@@ -196,7 +196,7 @@ def remove_variation(obj, name):
 class OBJECT_OT_delete_variation(Operator):
     """Delete variation property"""
     bl_idname = "lfs.delete_variation"
-    bl_label = "Delete_variation"
+    bl_label = "Delete variation"
     bl_options = {'REGISTER', 'UNDO'}
 
     var_name: StringProperty()
@@ -272,7 +272,7 @@ class OBJECT_OT_add_new_plane_variations(Operator):
         # Do the parenting
         initial_position = arm.data.pose_position
         arm.data.pose_position = 'REST'
-        context.scene.update()
+        context.view_layer.update()
 
         coll = arm.users_collection[0]
 
@@ -455,8 +455,8 @@ class VIEW3D_PT_rig_plane_variations(bpy.types.Panel):
                 col.prop(obj, '["%s"]' % p, text=p[10:])
                 var_num += 1
         if not var_num:
-            col.label("No variation found")
-            col.label("for this rig.")
+            col.label(text="No variation found")
+            col.label(text="for this rig.")
 
         col = self.layout.column(align=True)
         col.operator("lfs.delete_variation")
